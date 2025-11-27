@@ -16,7 +16,7 @@ end
 
 -- Entra automaticamente na primeira fase
 function entrar_na_primeira_fase()
-    print("➡️ Movendo Mario até a primeira fase...")
+    print("Movendo Mario até a primeira fase...")
 
     -- Endereço da posição do Mario no mapa (Overworld)
     local pos_anterior = mainmemory.readbyte(0x1F17)
@@ -37,7 +37,7 @@ function entrar_na_primeira_fase()
 
         -- Se ficou parado por muitos frames, deve ter chegado na fase
         if frames_sem_mover > 40 then
-            print("🅰️ Pressionando A para entrar na fase...")
+            print("Pressionando A para entrar na fase...")
             for i = 1, 40 do
                 joypad.set({A = true}, 1)
                 emu.frameadvance()
@@ -53,9 +53,9 @@ end
 local function limpar_arquivo_estado()
     local file = io.open(estadoFile, "w") -- "w" recria o arquivo vazio
     if file then
-        print("📄 Arquivo game_state.csv limpo após morte do Mario.")
+        print("Arquivo game_state.csv limpo após morte do Mario.")
     else
-        print("❌ Erro ao limpar o arquivo game_state.csv.")
+        print("Erro ao limpar o arquivo game_state.csv.")
     end
 end
 
@@ -112,22 +112,22 @@ function executar_acao(acao)
     end
     
     -- Adicionando suporte para ações combinadas (ex: "right+jump")
-    local actions = {}
-    for action in acao:gmatch("([^%+%s]+)") do
-        if action == "left" then
-            actions.Left = true
-        elseif action == "right" then
-            actions.Right = true
-        elseif action == "jump" then
-            actions.A = true
-        elseif action == "run" then
-            actions.B = true
-        end
-    end
+    -- local actions = {}
+    -- for action in acao:gmatch("([^%+%s]+)") do
+    --     if action == "left" then
+    --         actions.Left = true
+    --     elseif action == "right" then
+    --         actions.Right = true
+    --     elseif action == "jump" then
+    --         actions.A = true
+    --     elseif action == "run" then
+    --         actions.B = true
+    --     end
+    -- end
     
-    if next(actions) ~= nil then
-        joypad.set(actions, 1)
-    end
+    -- if next(actions) ~= nil then
+    --     joypad.set(actions, 1)
+    -- end
 end
 
 -- Reinicia o jogo se o Mario morrer
@@ -156,7 +156,7 @@ end
 while true do
     local current_place = esta_no_mapa()
 
-    print(current_place)
+    --print(current_place)
 
     if(current_place == 0) then
         iniciou_fase = true

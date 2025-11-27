@@ -6,6 +6,8 @@ import time
 import os
 import random
 from collections import deque
+import math # Importa math para o decaimento de epsilon
+import numpy as np # Importa numpy para a correção
 
 # Caminhos
 BASE_DIR = r"D:\Prog\Faculdade\8º período\Inteligencia Artificial\IA-player-de-games\lua_scripts"
@@ -76,7 +78,7 @@ class DQNAgent:
         self.steps_done = 0
 
     def select_action(self, state_tensor):
-        """Estratégia Epsilon-Greedy para escolha de ação."""
+
         sample = random.random()
         # Decaimento exponencial de epsilon
         eps_threshold = EPSILON_END + (EPSILON_START - EPSILON_END) * \
@@ -165,8 +167,6 @@ def is_done(current_state):
 
 
 # --- 5. Loop Principal de Treinamento ---
-import math # Importa math para o decaimento de epsilon
-
 agent = DQNAgent()
 previous_state = None
 last_line = 0
@@ -180,12 +180,14 @@ while True:
     # 1. Leitura do Estado do Jogo
     if not os.path.exists(STATE_FILE):
         time.sleep(0.1)
-        print("Arquivo de estado não encontrado. Verifique o caminho e o script Lua.")
+        print("Arquivo de estado não encontrado.")
         continue
 
     try:
-        # Lê o CSV
-        data = pd.read_csv(STATE_FILE)
+        # Lê o CSV, forçando o tipo de dado para float
+        COLUMN_NAMES = ["marioX", "marioY", "score", "vidas", "morto"]
+        data = pd.read_csv(STATE_FILE, skiprows=1, header=None, names=COLUMN_NAMES, dtype=float)
+
         
         # Verifica se há novos dados
         if len(data) <= last_line:
@@ -193,10 +195,6 @@ while True:
             continue
             
         # Pega o último estado
-        # O script Lua escreve: "marioX,marioY,score,vidas,morto"
-        # O pandas adiciona uma coluna de índice, então o estado começa no índice 1.
-        # No entanto, o script Lua original escreve o cabeçalho a cada frame, o que é ineficiente.
-        # Assumindo que o estado é a última linha e que a primeira coluna é o índice do pandas.
         current_state_raw = data.iloc[-1].values
         
         # O estado real é [marioX, marioY, score, vidas, morto]
@@ -210,6 +208,10 @@ while True:
             print(f"Erro: Tamanho do estado inesperado ({len(current_state_raw)}). Esperado {INPUT_SIZE} ou {INPUT_SIZE + 1}.")
             time.sleep(0.05)
             continue
+            
+        # Garante que o array NumPy é do tipo float antes de converter para tensor
+        if current_state.dtype == np.object_:
+            current_state = current_state.astype(np.float32)
             
         current_state_tensor = torch.tensor(current_state, dtype=torch.float32)
         
@@ -247,6 +249,8 @@ while True:
         pass # A transição será armazenada no final do loop
 
     # 4. Seleção da Ação (Epsilon-Greedy)
+    # A seleção da ação deve ser feita *após* a verificação de "done" e o reset de previous_state
+    # para garantir que a primeira ação do novo episódio seja selecionada corretamente.
     action_index = agent.select_action(current_state_tensor)
     action_string = ACTIONS[action_index]
 
@@ -270,70 +274,48 @@ while True:
     # 7. Atualização da Rede Alvo
     if total_steps % TARGET_UPDATE == 0:
         agent.target_net.load_state_dict(agent.policy_net.state_dict())
-        print(f"--- Rede Alvo Atualizada no Passo {total_steps} ---")
 
     # 8. Escrita da Ação no CSV
     with open(ACTION_FILE, "w") as f:
         f.write(action_string)
 
     # 9. Atualização de Estado e Contadores
-    previous_state = current_state
-    last_line = len(data)
+    # AQUI ESTÁ A CORREÇÃO:
+    # Se o episódio terminou, o `previous_state` deve ser resetado *após* o armazenamento da transição
+    # e o `last_line` deve ser resetado para 0 para garantir que o próximo `pd.read_csv` leia a partir do início
+    # (assumindo que o script Lua limpa o arquivo ou o emulador recomeça a escrita).
+    
+    # Se o episódio terminou (Mario morreu)
+    if done:
+        episode_count += 1
+        episode_reward = 0.0
+        # O reset do previous_state já está aqui, mas precisamos garantir que o `last_line` seja resetado
+        # para que o próximo loop leia o novo estado inicial.
+        # No entanto, se o emulador continuar escrevendo no mesmo arquivo, o `last_line` deve ser atualizado
+        # para o novo tamanho do arquivo.
+        
+        # A correção mais segura é garantir que o `last_line` seja sempre o tamanho atual do arquivo
+        # e que o `previous_state` seja resetado para `None` para o primeiro passo do novo episódio.
+        
+        # O problema é que, se o usuário reinicia manualmente, o `last_line` pode estar muito alto.
+        # Se o arquivo for limpo pelo emulador/script Lua, `len(data)` será 1 (cabeçalho + 1 linha de estado).
+        # Se o arquivo não for limpo, o `last_line` alto faz com que o `if len(data) <= last_line:` seja verdadeiro
+        # e o loop entre em `continue`, ignorando a leitura de novos estados.
+        
+        # SOLUÇÃO: Se o episódio terminou, e o `current_state` indica que o jogo recomeçou (e.g., marioX muito pequeno),
+        # ou se o `last_line` for muito maior que o `len(data)`, podemos resetar o `last_line`.
+        
+        # Vamos usar a lógica de que, se o episódio terminou, o `last_line` deve ser resetado
+        # para garantir que o próximo estado seja lido, mesmo que o arquivo tenha sido limpo.
+        last_line = 0 # Resetar o contador de linhas lidas
+        previous_state = None # Reseta o estado anterior para o próximo episódio
+        
+    else:
+        # Se o episódio não terminou, atualiza o estado e o contador de linhas
+        previous_state = current_state
+        last_line = len(data)
+        
     total_steps += 1
     episode_reward += reward
     
-    if done:
-        episode_count += 1
-        print(f"--- Episódio {episode_count} Terminado. Recompensa Total: {episode_reward:.2f} ---")
-        previous_state = None # Reseta o estado anterior para o próximo episódio
-        episode_reward = 0.0
-        
     time.sleep(0.05) # Pequeno delay para sincronizar frames
-
-#=================================================================================================================
-
-# # Cria modelo e otimizador
-# model = SimpleNN(input_size=4, output_size=4)  # 4 estados, 4 ações
-# optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-# # Lista de ações
-# actions = ["run", "left", "right", "jump"]
-
-# # Loop principal
-# last_line = 0
-# print("🚀 IA iniciada. Aguardando estados do jogo...")
-
-# while True:
-#     if not os.path.exists(STATE_FILE):
-#         time.sleep(0.1)
-#         print("Aqruivo não encontrado")
-#         continue
-
-#     try:
-#         data = pd.read_csv(STATE_FILE)
-#         if len(data) <= last_line:
-#             time.sleep(0.05)
-#     except Exception as e:
-#         print(e)
-#         continue
-#     # data = pd.read_csv(STATE_FILE)
-#     # if len(data) <= last_line:
-#     #     time.sleep(0.05)
-#     #     continue
-
-#     # Pega último estado
-#     state = data.iloc[-1, 1:].values  # ignora coluna 'frame'
-#     state_tensor = torch.tensor(state, dtype=torch.float32)
-
-#     # Gera previsão da rede
-#     with torch.no_grad():
-#         output = model(state_tensor)
-#         action_index = torch.argmax(output).item()
-#         action = actions[action_index]
-
-#     # Escreve ação no CSV
-#     with open(ACTION_FILE, "w") as f:
-#         f.write(action)
-
-#     last_line = len(data)
-#     time.sleep(0.05)  # pequeno delay para sincronizar frames

@@ -6,8 +6,8 @@ import time
 import os
 import random
 from collections import deque
-import math # Importa math para o decaimento de epsilon
-import numpy as np # Importa numpy para a correção
+import math 
+import numpy as np 
 
 # Caminhos
 BASE_DIR = r"D:\Prog\Faculdade\8º período\Inteligencia Artificial\IA-player-de-games\lua_scripts"
@@ -22,13 +22,14 @@ GAMMA = 0.99
 EPSILON_START = 1.0
 EPSILON_END = 0.01
 EPSILON_DECAY = 10000
-BATCH_SIZE = 32
+BATCH_SIZE = 32 
 TARGET_UPDATE = 1000 # Atualiza a rede alvo a cada 1000 passos
 
-# Lista de ações (DEVE CORRESPONDER ÀS AÇÕES NO SCRIPT LUA)
+# Lista de ações 
 ACTIONS = ["run", "left", "right", "jump"]
 
 # --- 1. Modelo de Rede Neural (DQN) ---
+# Cria o modelo da Rede neural
 class DQN(nn.Module):
     def __init__(self, input_size, output_size):
         super(DQN, self).__init__()
@@ -44,6 +45,7 @@ class DQN(nn.Module):
         return self.net(x)
 
 # --- 2. Buffer de Replay de Experiência ---
+# Essa função serve para armazenar o buffer da experiência que a IA vai adquirindo
 class ReplayBuffer:
     def __init__(self, capacity):
         self.buffer = deque(maxlen=capacity)
@@ -80,6 +82,7 @@ class DQNAgent:
     def select_action(self, state_tensor):
 
         sample = random.random()
+
         # Decaimento exponencial de epsilon
         eps_threshold = EPSILON_END + (EPSILON_START - EPSILON_END) * \
                         math.exp(-1. * self.steps_done / EPSILON_DECAY)
@@ -140,8 +143,6 @@ def calculate_reward(current_state, previous_state):
     """
     if previous_state is None:
         return 0.0
-
-    # O estado é uma lista/array: [marioX, marioY, score, vidas, morto]
     
     # Recompensa por avanço horizontal
     reward_x = (current_state[0] - previous_state[0]) * 0.1
@@ -160,9 +161,9 @@ def calculate_reward(current_state, previous_state):
     return total_reward
 
 def is_done(current_state):
-    """Verifica se o episódio terminou (Mario morreu)."""
+    """Verifica se a fase terminou (Mario morreu)."""
     # O script Lua reinicia o jogo se morto == 9.
-    # Vamos considerar o episódio "done" quando o Mario morre.
+    # VamVouos considerar a fase "done" quando o Mario morre.
     return current_state[4] == 9 # 'morto' é o 5º elemento (índice 4)
 
 
@@ -197,13 +198,10 @@ while True:
         # Pega o último estado
         current_state_raw = data.iloc[-1].values
         
-        # O estado real é [marioX, marioY, score, vidas, morto]
-        # Se o CSV tiver 6 colunas (Index, marioX, marioY, score, vidas, morto), pegamos da 1 em diante.
-        # Se o CSV tiver 5 colunas (marioX, marioY, score, vidas, morto), pegamos todas.
         if len(current_state_raw) == INPUT_SIZE:
             current_state = current_state_raw
         elif len(current_state_raw) == INPUT_SIZE + 1:
-            current_state = current_state_raw[1:] # Ignora a coluna de índice do pandas
+            current_state = current_state_raw[1:] 
         else:
             print(f"Erro: Tamanho do estado inesperado ({len(current_state_raw)}). Esperado {INPUT_SIZE} ou {INPUT_SIZE + 1}.")
             time.sleep(0.05)
@@ -229,14 +227,13 @@ while True:
         previous_state_tensor = torch.tensor(previous_state, dtype=torch.float32)
         # Ação anterior (action_index) deve ser armazenada, mas não temos ela aqui.
         # Para simplificar, vamos assumir que a ação anterior foi a que acabamos de selecionar.
-        # **NOTA IMPORTANTE:** Em um sistema de RL real, você precisa armazenar a ação que *levou* ao next_state.
+        # **NOTA:** Em um sistema de RL real, você precisa armazenar a ação que *levou* ao next_state.
         # Como estamos em um loop síncrono, a ação selecionada no passo anterior é a que levou ao estado atual.
         # Para fins de demonstração, vamos usar a ação que será selecionada *agora* como a ação anterior.
-        # Isso é um hack e deve ser corrigido em uma implementação real de RL.
-        # No entanto, para fazer o código funcionar com a estrutura de arquivos, vamos prosseguir.
+        # Isso é um hack e deve ser corrigido em uma implementação futura.
+        # No entanto, para fazer o código funcionar com a estrutura de arquivos, será feito assim.
         
-        # Vamos usar a ação selecionada no passo 4 como a ação que levou a este estado.
-        # Isso requer uma pequena reordenação da lógica, mas por enquanto, vamos focar no treinamento.
+        # Vou usar a ação selecionada no passo 4 como a ação que levou a este estado.
         
         # Para o DQN, precisamos da transição (s, a, r, s', done).
         # s = previous_state_tensor
@@ -245,7 +242,7 @@ while True:
         # done = done
         # a = Ação que levou de s a s' (precisamos armazenar a ação selecionada no loop anterior)
         
-        # Para simplificar, vamos armazenar a transição no final do loop, após a seleção da ação.
+        # Para simplificar, vou armazenar a transição no final do loop, após a seleção da ação.
         pass # A transição será armazenada no final do loop
 
     # 4. Seleção da Ação (Epsilon-Greedy)
@@ -257,14 +254,13 @@ while True:
     # 5. Armazenamento da Transição (s, a, r, s', done)
     if previous_state is not None:
         # Armazena a transição anterior: (previous_state, action_index_anterior, reward, current_state, done)
-        # Como não temos a action_index_anterior, vamos usar a action_index atual como placeholder
+        # Como não tenho a action_index_anterior, vou usar a action_index atual como placeholder
         # Isso é um problema de sincronização inerente ao uso de arquivos.
-        # Para fins de demonstração, vamos usar a action_index atual como a ação que levou ao estado atual.
+        # Para simplificar, vou usar a action_index atual como a ação que levou ao estado atual.
         # O ideal seria ter um buffer para armazenar a ação do frame anterior.
         
-        # Para o primeiro passo de treinamento, vamos ignorar a ação anterior e usar a atual.
-        # O correto seria: agent.buffer.push(previous_state_tensor, previous_action_index, reward, current_state_tensor, done)
-        # Vamos usar a action_index atual como um placeholder para a ação anterior.
+        # Para o primeiro passo de treinamento, vou ignorar a ação anterior e usar a atual.
+        # Vou usar a action_index atual como um placeholder para a ação anterior.
         agent.buffer.push(previous_state_tensor, action_index, reward, current_state_tensor, done)
         
     # 6. Otimização do Modelo
@@ -280,33 +276,11 @@ while True:
         f.write(action_string)
 
     # 9. Atualização de Estado e Contadores
-    # AQUI ESTÁ A CORREÇÃO:
-    # Se o episódio terminou, o `previous_state` deve ser resetado *após* o armazenamento da transição
-    # e o `last_line` deve ser resetado para 0 para garantir que o próximo `pd.read_csv` leia a partir do início
-    # (assumindo que o script Lua limpa o arquivo ou o emulador recomeça a escrita).
     
-    # Se o episódio terminou (Mario morreu)
+    # Se a fase terminou (Mario morreu)
     if done:
         episode_count += 1
         episode_reward = 0.0
-        # O reset do previous_state já está aqui, mas precisamos garantir que o `last_line` seja resetado
-        # para que o próximo loop leia o novo estado inicial.
-        # No entanto, se o emulador continuar escrevendo no mesmo arquivo, o `last_line` deve ser atualizado
-        # para o novo tamanho do arquivo.
-        
-        # A correção mais segura é garantir que o `last_line` seja sempre o tamanho atual do arquivo
-        # e que o `previous_state` seja resetado para `None` para o primeiro passo do novo episódio.
-        
-        # O problema é que, se o usuário reinicia manualmente, o `last_line` pode estar muito alto.
-        # Se o arquivo for limpo pelo emulador/script Lua, `len(data)` será 1 (cabeçalho + 1 linha de estado).
-        # Se o arquivo não for limpo, o `last_line` alto faz com que o `if len(data) <= last_line:` seja verdadeiro
-        # e o loop entre em `continue`, ignorando a leitura de novos estados.
-        
-        # SOLUÇÃO: Se o episódio terminou, e o `current_state` indica que o jogo recomeçou (e.g., marioX muito pequeno),
-        # ou se o `last_line` for muito maior que o `len(data)`, podemos resetar o `last_line`.
-        
-        # Vamos usar a lógica de que, se o episódio terminou, o `last_line` deve ser resetado
-        # para garantir que o próximo estado seja lido, mesmo que o arquivo tenha sido limpo.
         last_line = 0 # Resetar o contador de linhas lidas
         previous_state = None # Reseta o estado anterior para o próximo episódio
         
